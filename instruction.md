@@ -37,4 +37,6 @@ The UTF-8 JSON output has exactly `intervals` and `summary`. Each interval conta
 
 The summary contains sums of each interval energy/exchange/residual, `seasonal_cop` (total delivered heat divided by total electricity, or `null` when electricity is zero), and `node_extrema` mapping every node ID to `min_C` and `max_C` over its initial value and interval endpoints. State values must be within `2e-7 C`; energy and COP values must be within `1e-9` relative error with `1e-12` absolute tolerance.
 
+The ledger is a numerical energy-accounting record: preserve the stated Celsius, kelvin, watt-second, and kWh units and the required numerical precision. Validation is fail-closed: a rejected record must leave the destination and all report, journal, summary, and temporary artifacts unchanged. Re-running an identical valid record must be deterministic and must not accumulate hidden state or alter the published result.
+
 All numeric values are finite numbers; booleans do not count as numbers. Invalid schemas, node properties, material parameters, links, heat allocations, operating conditions, or daily horizons exit nonzero and must not create or alter `OUTPUT.json`. The output may be published only when validation and the complete report have succeeded. The command must support newly constructed valid networks and records, not just known examples.
