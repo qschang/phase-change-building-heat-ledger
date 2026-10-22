@@ -74,7 +74,7 @@ def test_extreme_cold_capacity_floor_does_not_create_negative_heat():
     a=case(); a['segments'][0]['T_outdoor_C']=-100; assert good(a)['intervals'][0]['heat_delivered_kWh']==0
 @pytest.mark.heat_pump
 def test_watt_seconds_and_seasonal_cop_use_energy_not_mean_interval_cop():
-    """“`seasonal_cop` (total delivered heat divided by total electricity, or `null` when electricity is zero).”"""
+    """“The summary contains sums of each interval energy/exchange/residual, `seasonal_cop` (total delivered heat divided by total electricity, or `null` when electricity is zero)”"""
     x=good(); assert x['summary']['seasonal_cop']==pytest.approx(x['summary']['heat_delivered_kWh']/x['summary']['electricity_kWh'])
 @pytest.mark.state_accounting
 def test_output_schema_order_and_node_identity_follow_input():
@@ -83,7 +83,7 @@ def test_output_schema_order_and_node_identity_follow_input():
 
 @pytest.mark.state_accounting
 def test_zero_forcing_preserves_constitutive_energy_and_phase_fraction():
-    """“`stored_energy_kWh` is the constitutive stored energy relative to 0 C, converted to kWh.”"""
+    """“`stored_energy_kWh` is the constitutive stored energy relative to 0 C, converted to kWh; `phase_fraction` is the latent-transition fraction from 0 to 1”"""
     a=case(); a['building']['links']=[]
     for n in a['building']['nodes']:
         n.update(G_out_W_per_K=0.0, area_m2=0.0)
@@ -100,14 +100,14 @@ def test_splitting_a_constant_operating_interval_preserves_final_state_and_total
     a=case(); s=a['segments'][0]; a['segments']=[dict(s,duration_s=900)]; b=copy.deepcopy(a); b['segments']=[dict(s,duration_s=450),dict(s,duration_s=450)]; assert good(a)['summary']['heat_delivered_kWh']==pytest.approx(good(b)['summary']['heat_delivered_kWh'])
 @pytest.mark.state_accounting
 def test_summary_energy_fields_equal_interval_sums():
-    """“The summary additionally contains sums of each interval energy/exchange/residual, `seasonal_cop` (total delivered heat divided by total electricity, or `null` when electricity is zero), and `node_extrema` mapping every node ID to `min_C` and `max_C` over its initial value and interval endpoints.”"""
+    """“The summary contains sums of each interval energy/exchange/residual”"""
     x=good()
     for k in ['heat_delivered_kWh','electricity_kWh','outdoor_exchange_kWh','radiant_exchange_kWh','building_gains_kWh','thermal_balance_residual_kWh']:
         assert x['summary'][k]==pytest.approx(sum(r[k] for r in x['intervals']))
 @pytest.mark.invalid_input
 @pytest.mark.parametrize('mut',range(14))
 def test_invalid_network_or_operating_record_rejects_without_file_side_effects(mut):
-    """“Invalid schemas, node properties, material parameters, links, heat allocations, operating conditions, or daily horizons exit nonzero and must not create or alter `OUTPUT.json`.”"""
+    """“Invalid schemas, node properties, material parameters, links, heat allocations, operating conditions, or daily horizons exit nonzero”"""
     # The command must also accept a complete valid record; a starter that
     # rejects every input must not earn the rejection-group weight.
     assert run(case())[0].returncode == 0
