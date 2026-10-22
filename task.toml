@@ -1,0 +1,27 @@
+schema_version = "1.3"
+
+[task]
+name = "qsc/phase-change-building-heat-ledger"
+description = "Repair a phase-change building heat ledger that reports coupled node temperatures, heat-pump electricity, boundary exchange, and interval energy balance."
+authors = [{ name = "QSC" }]
+keywords = ["building-energy", "thermal-network", "heat-pump", "energy-balance", "multi-zone-model"]
+
+[agent]
+timeout_sec = 3600
+
+[environment]
+build_timeout_sec = 900
+cpus = 1
+memory_mb = 2048
+storage_mb = 4096
+gpus = 0
+allow_internet = true
+
+[verifier]
+timeout_sec = 300
+
+[metadata]
+difficulty = "expert"
+category = "F.2 能源系统"
+tags = ["建筑热网络", "多节点热惯性", "热泵性能", "能量闭合"]
+expert_time_estimate = "10h"
