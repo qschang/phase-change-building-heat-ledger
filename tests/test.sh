@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REWARD_PATH="/logs/verifier/reward.txt"
+REPORT_DIR="/logs/verifier"
+REWARD_TMP="${REWARD_PATH}.tmp.$$"
+write_reward() {
+  mkdir -p "$REPORT_DIR"
+  printf '%s\n' "$1" > "$REWARD_TMP"
+  mv -f "$REWARD_TMP" "$REWARD_PATH"
+}
+write_zero() {
+  mkdir -p "$REPORT_DIR"
+  printf '0.00\n' > /logs/verifier/reward.txt
+  rm -f "$REWARD_TMP"
+}
+trap 'write_zero; exit 1' ERR INT TERM HUP
+write_zero
+cd /tests
+export PYTHONDONTWRITEBYTECODE=1
+python3 -B -I -m pip install --disable-pip-version-check --no-index --find-links=/tests/wheels --require-hashes -r /tests/requirements.txt >/logs/verifier/pytest-install.log 2>&1
+python3 -B -I -c 'import pytest; assert pytest.__version__ == "8.4.2"'
+
+earned=0
+groups=(dynamics heat_pump state_accounting invalid_input)
+weights=(35 30 20 15)
+for i in "${!groups[@]}"; do
+  group="${groups[$i]}"
+  report="$REPORT_DIR/pytest-${group}.xml"
+  check="$REPORT_DIR/pytest-${group}-verification.json"
+  console="$REPORT_DIR/pytest-${group}.log"
+  rm -f "$report" "$check" "$console"
+
+  if python3 -B -I -m pytest -q -p no:cacheprovider -c /tests/pytest.ini --strict-markers --junitxml="$report" \
+      -m "$group" /tests/test_contract.py >"$console" 2>&1; then
+    pytest_rc=0
+  else
+    pytest_rc=$?
+  fi
+
+  if python3 -B -I /tests/verify_junit.py "$report" "$group" "$pytest_rc" >"$check" 2>&1; then
+    check_rc=0
+  else
+    check_rc=$?
+  fi
+  if [ "$check_rc" -eq 0 ]; then
+    earned=$((earned + weights[$i]))
+  fi
+done
+
+printf -v score '%d.%02d' "$((earned / 100))" "$((earned % 100))"
+write_reward "$score"
+rm -f "$REWARD_TMP"
+trap - ERR INT TERM HUP
