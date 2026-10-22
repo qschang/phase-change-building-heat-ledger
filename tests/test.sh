@@ -22,6 +22,8 @@ python3 -B -I -m pip install --disable-pip-version-check --no-index --find-links
 python3 -B -I -c 'import pytest; assert pytest.__version__ == "8.4.2"'
 
 earned=0
+# The structured scorer is part of the verifier contract; its report is fail-closed.
+# score.py consumes --junit and writes --report-out/--reward-out scoring-report.json.
 groups=(dynamics heat_pump state_accounting invalid_input)
 weights=(35 30 20 15)
 for i in "${!groups[@]}"; do
@@ -32,7 +34,7 @@ for i in "${!groups[@]}"; do
   rm -f "$report" "$check" "$console"
 
   if python3 -B -I -m pytest -q -p no:cacheprovider -c /tests/pytest.ini --strict-markers --junitxml="$report" \
-      -m "$group" /tests/test_contract.py >"$console" 2>&1; then
+      -m "$group" /tests/test_outputs.py >"$console" 2>&1; then
     pytest_rc=0
   else
     pytest_rc=$?
@@ -48,7 +50,12 @@ for i in "${!groups[@]}"; do
   fi
 done
 
-printf -v score '%d.%02d' "$((earned / 100))" "$((earned % 100))"
-write_reward "$score"
+python3 -B -I /tests/merge_junit.py "$REPORT_DIR/pytest-all.xml" "$REPORT_DIR"/pytest-*.xml
+python3 -B -I /tests/score.py \
+  --config /tests/scoring.json \
+  --junit "$REPORT_DIR/pytest-all.xml" \
+  --report-out "$REPORT_DIR/scoring-report.json" \
+  --reward-out "$REWARD_TMP"
+mv -f "$REWARD_TMP" "$REWARD_PATH"
 rm -f "$REWARD_TMP"
 trap - ERR INT TERM HUP

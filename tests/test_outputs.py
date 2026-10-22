@@ -6,11 +6,14 @@ def case():
     return {'building':{'sigma_W_per_m2_K4':5.67e-8,'nodes':[{'id':'wall','C_sensible_J_per_K':900000.0,'latent_heat_J':1200000.0,'transition_mid_C':18.0,'transition_width_K':1.5,'G_out_W_per_K':18.0,'area_m2':12.0,'T_initial_C':16.0,'heat_fraction':0.7},{'id':'core','C_sensible_J_per_K':1400000.0,'latent_heat_J':0.0,'transition_mid_C':20.0,'transition_width_K':2.0,'G_out_W_per_K':7.0,'area_m2':4.0,'T_initial_C':17.0,'heat_fraction':0.3}],'links':[{'a':'wall','b':'core','G_W_per_K':35.0}]},'heat_pump':{'Q_nominal_W':6000.0,'COP_nominal':4.0,'T_source_nominal_C':7.0,'T_supply_nominal_C':35.0,'evaporator_approach_K':3.0,'condenser_approach_K':3.0,'capacity_slope_per_K':0.02,'capacity_reference_C':7.0,'part_load_coefficients':[0.82,0.18,0.0]},'segments':[{'duration_s':900.0,'T_outdoor_C':-4.0,'T_radiant_C':-2.0,'T_supply_C':38.0,'heat_command':0.8,'gains_W_by_node':[120.0,40.0]},{'duration_s':1200.0,'T_outdoor_C':2.0,'T_radiant_C':3.0,'T_supply_C':34.0,'heat_command':0.35,'gains_W_by_node':[30.0,70.0]}]}
 def run(data,existing=False):
     with tempfile.TemporaryDirectory() as td:
-        p=Path(td); i=p/'in.json'; o=p/'out.json'; i.write_text(json.dumps(data),encoding='utf-8'); sentinel=b'keep-me\n'
+        p=Path(td); i=p/'in.json'; o=p/'out.json'; report=p/'report.json'; journal=p/'journal.log'; summary=p/'summary.json'; i.write_text(json.dumps(data),encoding='utf-8'); sentinel=b'keep-me\n'
         if existing:o.write_bytes(sentinel)
-        r=subprocess.run([sys.executable,APP,str(i),str(o)],capture_output=True,timeout=60); return r,(o.read_bytes() if o.exists() else None),sentinel,sorted(x.name for x in p.iterdir() if x.name.startswith('.thermal-ledger-'))
+        r=subprocess.run([sys.executable,APP,str(i),str(o)],capture_output=True,timeout=60); return r,(o.read_bytes() if o.exists() else None),sentinel,sorted(x.name for x in p.iterdir() if x.name.startswith('.thermal-ledger-')), {'report':report.exists(),'journal':journal.exists(),'summary':summary.exists(),'output':o.exists()}
 def good(data=None):
-    r,b,_,tmp=run(case() if data is None else data); assert r.returncode==0,r.stderr.decode(); assert not tmp; return json.loads(b)
+    r,b,_,tmp,_=run(case() if data is None else data)
+    if r.returncode != 0 or tmp or b is None:
+        raise RuntimeError(r.stderr.decode() or 'valid case failed')
+    return json.loads(b)
 @pytest.mark.dynamics
 def test_multinode_trajectory_and_outdoor_exchange_match_independent_integration():
     """Public contract: coupled nodes and signed outdoor exchange are reported per interval."""
@@ -108,14 +111,14 @@ def test_invalid_network_or_operating_record_rejects_without_file_side_effects(m
     # The command must also accept a complete valid record; a starter that
     # rejects every input must not earn the rejection-group weight.
     assert run(case())[0].returncode == 0
-    a=case(); actions=[lambda: a['building']['nodes'][0].pop('area_m2'),lambda: a['building']['nodes'][0].update(latent_heat_J=-1),lambda: a['building']['nodes'][0].update(transition_width_K=0),lambda: a['building']['nodes'][0].update(heat_fraction=.2),lambda: a['building']['links'][0].update(G_W_per_K=0),lambda: a['building']['links'].append({'a':'core','b':'wall','G_W_per_K':2}),lambda: a['segments'][0].update(gains_W_by_node=[0]),lambda: a['segments'][0].update(heat_command=2),lambda: a['segments'][0].update(duration_s=0),lambda: a['segments'][0].update(T_supply_C=-300),lambda: a['heat_pump'].update(COP_nominal=1),lambda: a['building'].update(sigma_W_per_m2_K4=0),lambda: a['segments'][0].update(duration_s=86400),lambda: a['segments'][0].update(heat_command=float('nan'))]; actions[mut](); r,b,s,tmp=run(a); assert r.returncode!=0 and b is None and not tmp; r,b,s,tmp=run(a,True); assert r.returncode!=0 and b==s and not tmp
+    a=case(); actions=[lambda: a['building']['nodes'][0].pop('area_m2'),lambda: a['building']['nodes'][0].update(latent_heat_J=-1),lambda: a['building']['nodes'][0].update(transition_width_K=0),lambda: a['building']['nodes'][0].update(heat_fraction=.2),lambda: a['building']['links'][0].update(G_W_per_K=0),lambda: a['building']['links'].append({'a':'core','b':'wall','G_W_per_K':2}),lambda: a['segments'][0].update(gains_W_by_node=[0]),lambda: a['segments'][0].update(heat_command=2),lambda: a['segments'][0].update(duration_s=0),lambda: a['segments'][0].update(T_supply_C=-300),lambda: a['heat_pump'].update(COP_nominal=1),lambda: a['building'].update(sigma_W_per_m2_K4=0),lambda: a['segments'][0].update(duration_s=86400),lambda: a['segments'][0].update(heat_command=float('nan'))]; actions[mut](); r,b,s,tmp,side=run(a); assert r.returncode!=0 and b is None and not tmp and not side['report'] and not side['journal'] and not side['summary'] and not side['output']; r,b,s,tmp,side=run(a,True); assert r.returncode!=0 and b==s and not tmp and side['output'] and not side['report'] and not side['journal'] and not side['summary']
 @pytest.mark.invalid_input
 def test_late_invalid_segment_does_not_publish_valid_prefix():
     """Public contract: a late invalid segment cannot publish a valid prefix."""
     assert run(case())[0].returncode == 0
-    a=case(); a['segments'][1]['duration_s']=0; r,b,s,tmp=run(a,True); assert r.returncode!=0 and b==s and not tmp
+    a=case(); a['segments'][1]['duration_s']=0; r,b,s,tmp,side=run(a,True); assert r.returncode!=0 and b==s and not tmp and side['output'] and not side['report'] and not side['journal'] and not side['summary']
 @pytest.mark.invalid_input
 def test_daily_horizon_limit_is_applied_to_complete_record():
     """Public contract: complete records longer than one day are rejected atomically."""
     assert run(case())[0].returncode == 0
-    a=case(); a['segments'][0]['duration_s']=50000; a['segments'][1]['duration_s']=36401; r,b,s,tmp=run(a); assert r.returncode!=0 and b is None and not tmp
+    a=case(); a['segments'][0]['duration_s']=50000; a['segments'][1]['duration_s']=36401; r,b,s,tmp,side=run(a); assert r.returncode!=0 and b is None and not tmp and not side['report'] and not side['journal'] and not side['summary'] and not side['output']

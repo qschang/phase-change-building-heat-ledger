@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "gate_tests": [
+    "test_outputs.py::test_multinode_trajectory_and_outdoor_exchange_match_independent_integration",
+    "test_outputs.py::test_nominal_operating_point_recovers_rated_cop_and_capacity",
+    "test_outputs.py::test_output_schema_order_and_node_identity_follow_input",
+    "test_outputs.py::test_invalid_network_or_operating_record_rejects_without_file_side_effects[0]"
+  ],
+  "tests": {
+    "test_outputs.py::test_node_renaming_and_permutation_preserve_physical_results": {"weight": 0.20, "rationale": "coupled graph permutation invariance"},
+    "test_outputs.py::test_radiation_exchange_uses_kelvin_absolute_temperature": {"weight": 0.15, "rationale": "absolute-temperature radiation"},
+    "test_outputs.py::test_phase_transition_crossing_reports_latent_state_not_only_temperature": {"weight": 0.20, "rationale": "latent constitutive state"},
+    "test_outputs.py::test_cold_capacity_derating_and_temperature_lift_change_electricity": {"weight": 0.15, "rationale": "heat-pump lift and capacity"},
+    "test_outputs.py::test_zero_forcing_preserves_constitutive_energy_and_phase_fraction": {"weight": 0.15, "rationale": "state accounting invariant"},
+    "test_outputs.py::test_late_invalid_segment_does_not_publish_valid_prefix": {"weight": 0.15, "rationale": "late rejection atomicity"}
+  }
+}
